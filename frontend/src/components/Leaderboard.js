@@ -2,16 +2,22 @@ import React, { useEffect, useState } from "react";
 import { getPotholes } from "../services/api";
 
 const ZONES = {
+  "Electronic City": { lat: 12.8458, lng: 77.6692 },
+  "Bommanahalli": { lat: 12.8961, lng: 77.6259 },
+  "HSR Layout": { lat: 12.9116, lng: 77.6389 },
+  "PESU RR Campus": { lat: 12.9121, lng: 77.6446 },
+  "Koramangala": { lat: 12.9352, lng: 77.6245 },
   "Silk Board": { lat: 12.9172, lng: 77.6101 },
   "Outer Ring Road": { lat: 12.9352, lng: 77.6245 },
   "Marathahalli": { lat: 12.9698, lng: 77.7499 },
   "Hebbal": { lat: 13.0358, lng: 77.5970 },
-  "Whitefield": { lat: 12.9698, lng: 77.7499 },
-  "KR Puram": { lat: 12.9592, lng: 77.6974 },
-  "Electronic City": { lat: 12.8458, lng: 77.6692 },
-  "Bommanahalli": { lat: 12.8961, lng: 77.6259 },
-  "HSR Layout": { lat: 12.9116, lng: 77.6389 },
-  "Koramangala": { lat: 12.9352, lng: 77.6245 },
+  "Whitefield": { lat: 12.9698, lng: 77.7408 },
+  "Bannerghatta": { lat: 12.8636, lng: 77.5988 },
+  "JP Nagar": { lat: 12.9063, lng: 77.5857 },
+  "Jayanagar": { lat: 12.9299, lng: 77.5826 },
+  "Indiranagar": { lat: 12.9784, lng: 77.6408 },
+  "Kengeri": { lat: 12.9063, lng: 77.5488 },
+  "Uttarahalli": { lat: 12.9031, lng: 77.5091 },
 };
 
 const severityScore = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1, critical: 4, high: 3, medium: 2, low: 1 };

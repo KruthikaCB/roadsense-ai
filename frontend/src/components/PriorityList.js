@@ -20,7 +20,7 @@ export default function PriorityList() {
         const count = parseInt(p.report_count) || 1;
         const traffic = trafficDensity[p.severity] || 1;
         const cost = repairCost[p.severity] || 10000;
-        const priority = Math.round((sev * count * traffic * 1000) / cost);
+        const priority = Math.round((sev * count * traffic * 100000) / cost);
         const ward = getWard(parseFloat(p.latitude), parseFloat(p.longitude));
         return { ...p, priority, ward: ward.ward, wardNo: ward.wardNo };
       });
@@ -67,14 +67,14 @@ export default function PriorityList() {
                   </span>
                 </td>
                 <td>
-                  <span style={{ fontWeight: "700", fontSize: "14px", color: p.priority > 5 ? "#f87171" : "#fb923c" }}>
+                  <span style={{ fontWeight: "700", fontSize: "14px", color: p.priority > 20 ? "#f87171" : "#fb923c" }}>
                     {p.priority}
                   </span>
                 </td>
                 <td style={{ fontSize: "11px", fontWeight: "600" }}>
-                  {p.priority > 5
+                  {p.priority > 20
                     ? <span style={{ color: "#f87171" }}>🚨 Immediate</span>
-                    : p.priority > 2
+                    : p.priority > 10
                     ? <span style={{ color: "#fb923c" }}>⚠️ This Week</span>
                     : <span style={{ color: "var(--text-muted)" }}>📅 Scheduled</span>}
                 </td>

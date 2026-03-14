@@ -1,6 +1,25 @@
 import React, { useEffect, useState } from "react";
 import { getStats, getPotholes } from "../services/api";
 
+const ZONES = {
+  "Electronic City": { lat: 12.8458, lng: 77.6692 },
+  "Bommanahalli": { lat: 12.8961, lng: 77.6259 },
+  "HSR Layout": { lat: 12.9116, lng: 77.6389 },
+  "PESU RR Campus": { lat: 12.9121, lng: 77.6446 },
+  "Koramangala": { lat: 12.9352, lng: 77.6245 },
+  "Silk Board": { lat: 12.9172, lng: 77.6101 },
+  "Outer Ring Road": { lat: 12.9352, lng: 77.6245 },
+  "Marathahalli": { lat: 12.9698, lng: 77.7499 },
+  "Hebbal": { lat: 13.0358, lng: 77.5970 },
+  "Whitefield": { lat: 12.9698, lng: 77.7408 },
+  "Bannerghatta": { lat: 12.8636, lng: 77.5988 },
+  "JP Nagar": { lat: 12.9063, lng: 77.5857 },
+  "Jayanagar": { lat: 12.9299, lng: 77.5826 },
+  "Indiranagar": { lat: 12.9784, lng: 77.6408 },
+  "Kengeri": { lat: 12.9063, lng: 77.5488 },
+  "Uttarahalli": { lat: 12.9031, lng: 77.5091 },
+};
+
 export default function StatsPanel() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -9,11 +28,17 @@ export default function StatsPanel() {
     Promise.all([getStats(), getPotholes()]).then(([statsRes, potholesRes]) => {
       const s = statsRes.status === "success" ? statsRes.data : null;
       const incidents = potholesRes.status === "success" ? potholesRes.data : [];
+
       const zones = {};
       incidents.forEach(p => {
-        const zone = p.latitude > 12.95 ? "Hebbal" : p.latitude > 12.93 ? "ORR" : "Silk Board";
-        zones[zone] = (zones[zone] || 0) + 1;
+        let closest = "Unknown"; let minDist = Infinity;
+        for (const [name, coords] of Object.entries(ZONES)) {
+          const dist = Math.sqrt(Math.pow(parseFloat(p.latitude) - coords.lat, 2) + Math.pow(parseFloat(p.longitude) - coords.lng, 2));
+          if (dist < minDist) { minDist = dist; closest = name; }
+        }
+        zones[closest] = (zones[closest] || 0) + 1;
       });
+
       const worstZone = Object.entries(zones).sort((a, b) => b[1] - a[1])[0]?.[0] || "N/A";
       const finalStats = { ...s, worstZone, complaints_sent: incidents.filter(p => p.complaint_sent).length };
       setStats(finalStats);

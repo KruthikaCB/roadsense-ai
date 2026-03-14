@@ -11,7 +11,7 @@ def get_stats():
         
         total = len(incidents)
         
-        severity_counts = {"low": 0, "medium": 0, "high": 0}
+        severity_counts = {"low": 0, "medium": 0, "high": 0, "critical": 0}
         for incident in incidents:
             severity = incident.get("severity", "low").lower()
             if severity in severity_counts:

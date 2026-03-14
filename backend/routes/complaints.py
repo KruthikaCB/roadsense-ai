@@ -2,7 +2,7 @@ from fastapi import APIRouter
 import urllib.request
 import json
 from utils.response import success, error
-from services.dynamo_service import get_all_incidents
+from services.dynamo_service import get_all_incidents, table
 from services.bedrock_service import generate_complaint
 
 router = APIRouter()
@@ -28,7 +28,6 @@ def get_complaint(incident_id: str):
     try:
         incidents = get_all_incidents()
         incident = next((i for i in incidents if i["incident_id"] == incident_id), None)
-
         if not incident:
             return error("Incident not found")
 
@@ -52,7 +51,13 @@ def get_complaint(incident_id: str):
             monthly_savings=int(float(incident.get("monthly_savings_if_fixed", 0))),
         )
 
-        return success({"complaint": complaint}, "Complaint generated")
+        # Mark complaint as sent in DynamoDB
+        table.update_item(
+            Key={"incident_id": incident_id},
+            UpdateExpression="SET complaint_sent = :val",
+            ExpressionAttributeValues={":val": True}
+        )
 
+        return success({"complaint": complaint}, "Complaint generated")
     except Exception as e:
         return error(str(e))

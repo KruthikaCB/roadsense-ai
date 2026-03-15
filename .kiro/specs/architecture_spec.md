@@ -3,65 +3,91 @@
 ## System Architecture
 
 ### Frontend (React)
-- Upload Form — image + location search with Nominatim geocoding
-- Live Map — Leaflet + TomTom traffic overlay
-- Stats Panel — real-time DynamoDB stats
-- Leaderboard — worst zones by severity + traffic impact
-- Priority List — BBMP repair priority scoring
-- ROI Calculator — economic loss vs repair cost
-- Demo Mode — auto-play pipeline for presentations
+Three tabs, no routing library — tab state managed in `Home.js`:
+
+- **Dashboard** — `StatsPanel` + `RiskPredictionPanel`
+- **Live Map** — `MapDashboard` (Leaflet + TomTom traffic overlay)
+- **Report** — `UploadForm` (image upload, location, AI result, complaint)
 
 ### Backend (FastAPI + Python)
-- `/api/upload` — receives image, runs Bedrock Vision, saves to S3 + DynamoDB
-- `/api/potholes` — fetches all incidents from DynamoDB
-- `/api/stats` — aggregates severity/status counts
-- `/api/complaint/{id}` — generates RTI complaint via Bedrock
 
-### AWS Services Flow
+| Route                                  | Purpose                                              |
+|----------------------------------------|------------------------------------------------------|
+| `POST /api/upload`                     | Receive image, run AI analysis, save to S3 + DynamoDB |
+| `GET  /api/potholes`                   | Fetch all incidents from DynamoDB                    |
+| `GET  /api/potholes/{id}`              | Fetch single incident                                |
+| `PATCH /api/potholes/{id}/status`      | Update repair status                                 |
+| `POST /api/potholes/{id}/upvote`       | Increment community upvote counter                   |
+| `GET  /api/stats`                      | Aggregate severity and status counts                 |
+| `GET  /api/complaint/{id}`             | Generate RTI complaint via Bedrock AI                |
+| `GET  /predict/risk-zones`             | Return top 5 risk wards (prediction model)           |
+| `GET  /health`                         | Service health check                                 |
+
+### Upload Flow
 ```
-User uploads image
-    ↓
-FastAPI backend receives file
-    ↓
-Amazon Bedrock (Claude 3 Haiku) analyzes image
-    → Returns: severity, confidence, size, description, economic impact
-    ↓
-Amazon S3 stores image
-    → Returns: public image URL
-    ↓
-Amazon DynamoDB stores incident record
-    → incident_id, lat, lng, severity, image_url, ai_result, timestamp
-    ↓
-Frontend displays result + map pin
-    ↓
-User clicks "Generate Complaint"
-    ↓
-Amazon Bedrock generates RTI format letter
-    ↓
-Complaint displayed + marked as sent
+Citizen uploads image + GPS
+        ↓
+FastAPI validates file type + size
+        ↓
+OpenRouter vision model analyzes image
+  → severity, confidence, size, description, economic costs
+        ↓
+AWS S3 stores image → returns URL
+        ↓
+AWS DynamoDB stores incident record
+        ↓
+Frontend displays AI result card
+        ↓
+Citizen clicks "Generate Complaint"
+        ↓
+Nominatim reverse-geocodes GPS → street name
+        ↓
+Amazon Bedrock generates RTI letter
+        ↓
+DynamoDB marks complaint_sent = true
 ```
 
-## Data Model (DynamoDB)
+### Risk Prediction Flow
+```
+GET /predict/risk-zones
+        ↓
+OpenWeatherMap API → live rainfall mm/h for Bengaluru
+        ↓
+DynamoDB scan → pothole count per ward
+        ↓
+Scoring formula per ward:
+  raw = (base_risk×0.5) + (road_age×0.3) + (pothole_density×0.15) + (rainfall×0.05)
+  score = raw × 10  →  0–100
+        ↓
+Top 5 wards sorted by descending score
+        ↓
+RiskPredictionPanel renders colored cards
+```
+
+## Data Model (DynamoDB — `roadsense-incidents`)
+
 ```json
 {
-  "incident_id": "uuid",
-  "timestamp": "ISO8601",
-  "latitude": "string",
-  "longitude": "string",
-  "severity": "LOW|MEDIUM|HIGH|CRITICAL",
-  "image_url": "s3_url",
-  "status": "reported|under_review|in_progress|fixed",
-  "confidence": "number",
-  "size_estimate": "string",
-  "description": "string",
+  "incident_id":                "uuid",
+  "timestamp":                  "ISO8601",
+  "latitude":                   "string",
+  "longitude":                  "string",
+  "severity":                   "LOW | MEDIUM | HIGH | CRITICAL",
+  "image_url":                  "s3_url",
+  "status":                     "reported | under_review | in_progress | fixed",
+  "confidence":                 "number",
+  "size_estimate":              "string",
+  "description":                "string",
+  "risk_level":                 "string",
   "vehicle_damage_cost_per_day": "number",
-  "repair_cost": "number",
-  "monthly_savings_if_fixed": "number",
-  "complaint_sent": "boolean"
+  "repair_cost":                "number",
+  "monthly_savings_if_fixed":   "number",
+  "upvotes":                    "number",
+  "complaint_sent":             "boolean"
 }
 ```
 
 ## Security
-- AWS credentials stored in .env (not committed to git)
-- CORS enabled for local development
-- Input validation on file type and size
+- AWS credentials stored in `.env` (gitignored)
+- CORS open for local development — restrict in production
+- File type and size validated before AI processing

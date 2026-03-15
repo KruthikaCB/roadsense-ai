@@ -3,5 +3,5 @@ uvicorn
 python-dotenv
 boto3
 python-multipart
-python-dotenv
+requests
 

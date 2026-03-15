@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from "react-leaflet";
-import { getPotholes, upvotePothole } from "../services/api";
+import { getPotholes, updateStatus, upvotePothole } from "../services/api";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import "leaflet.heat";
@@ -37,11 +37,13 @@ const fetchTrafficIncidents = async () => {
   } catch { return []; }
 };
 
-const statusBadgeColor = {
-  fixed: { bg: "rgba(34,197,94,0.15)", color: "#22c55e", border: "rgba(34,197,94,0.3)", label: "✅ Fixed" },
-  in_progress: { bg: "rgba(59,130,246,0.15)", color: "#3b82f6", border: "rgba(59,130,246,0.3)", label: "🔧 In Progress" },
-  under_review: { bg: "rgba(245,158,11,0.15)", color: "#f59e0b", border: "rgba(245,158,11,0.3)", label: "🔍 Under Review" },
-  reported: { bg: "rgba(239,68,68,0.15)", color: "#ef4444", border: "rgba(239,68,68,0.3)", label: "📌 Reported" },
+const popupSelect = {
+  width: "100%", padding: "6px 8px",
+  borderRadius: "6px", background: "#1e293b",
+  border: "1px solid rgba(255,255,255,0.12)",
+  color: "#f1f5f9", fontSize: "12px",
+  fontFamily: "Inter, sans-serif",
+  cursor: "pointer", marginTop: "4px",
 };
 
 function HeatmapLayer({ potholes }) {
@@ -69,6 +71,7 @@ function HeatmapLayer({ potholes }) {
 export default function MapDashboard() {
   const [potholes, setPotholes] = useState([]);
   const [trafficIncidents, setTrafficIncidents] = useState([]);
+  const [statuses, setStatuses] = useState({});
   const [upvotes, setUpvotes] = useState({});
   const [upvoted, setUpvoted] = useState({});
   const [showHeatmap, setShowHeatmap] = useState(false);
@@ -86,6 +89,13 @@ export default function MapDashboard() {
     };
     load().catch(() => setPotholes([]));
   }, []);
+
+  const handleStatusUpdate = async (incidentId, newStatus) => {
+    try {
+      await updateStatus(incidentId, newStatus);
+      setStatuses(prev => ({ ...prev, [incidentId]: newStatus }));
+    } catch { alert("Failed to update status"); }
+  };
 
   const handleUpvote = async (incidentId) => {
     if (upvoted[incidentId]) return;
@@ -144,48 +154,42 @@ export default function MapDashboard() {
 
           {!showHeatmap && potholes.map((p) => (
             <CircleMarker
-              key={p.incident_id}
+              key={`${p.incident_id}-${statuses[p.incident_id] || p.status}`}
               center={[parseFloat(p.latitude), parseFloat(p.longitude)]}
               radius={12}
-              fillColor={statusColor[p.status] || severityColor[p.severity] || "#eab308"}
+              fillColor={statusColor[statuses[p.incident_id] || p.status] || severityColor[p.severity] || "#eab308"}
               color="rgba(0,0,0,0.4)"
               weight={1}
               fillOpacity={0.9}
             >
               <Popup minWidth={240}>
                 <div style={{ fontFamily: "Inter, sans-serif" }}>
+                  {/* Severity */}
                   <div style={{ fontWeight: "700", fontSize: "13px", color: severityColor[p.severity], marginBottom: "6px" }}>
                     {p.severity} Pothole
                   </div>
 
-                  {p.description && (
-                    <div style={{ fontSize: "11px", color: "#94a3b8", marginBottom: "6px" }}>{p.description}</div>
-                  )}
-
-                  <div style={{ fontSize: "10px", color: "#475569", marginBottom: "8px" }}>
-                    📅 {new Date(p.timestamp).toLocaleString()}
+                  {/* Status */}
+                  <div style={{ fontSize: "11px", color: "#94a3b8", marginBottom: "2px" }}>
+                    Status: <span style={{ color: "#f1f5f9", fontWeight: "600" }}>{statuses[p.incident_id] || p.status}</span>
                   </div>
 
-                  {/* Status badge — read only */}
-                  {(() => {
-                    const s = statusBadgeColor[p.status] || statusBadgeColor.reported;
-                    return (
-                      <div style={{
-                        display: "inline-block", padding: "3px 10px", borderRadius: "20px",
-                        fontSize: "11px", fontWeight: "600", marginBottom: "10px",
-                        background: s.bg, color: s.color, border: `1px solid ${s.border}`
-                      }}>
-                        {s.label}
-                      </div>
-                    );
-                  })()}
+                  {/* Description */}
+                  {p.description && (
+                    <div style={{ fontSize: "11px", color: "#94a3b8", marginBottom: "4px" }}>{p.description}</div>
+                  )}
+
+                  {/* Timestamp */}
+                  <div style={{ fontSize: "10px", color: "#475569", marginBottom: "10px" }}>
+                    {new Date(p.timestamp).toLocaleString()}
+                  </div>
 
                   {/* Upvote button */}
                   <button
                     onClick={() => handleUpvote(p.incident_id)}
                     disabled={upvoted[p.incident_id]}
                     style={{
-                      width: "100%", padding: "8px",
+                      width: "100%", padding: "8px", marginBottom: "8px",
                       background: upvoted[p.incident_id] ? "#22c55e22" : "#6366f122",
                       color: upvoted[p.incident_id] ? "#22c55e" : "#818cf8",
                       border: `1px solid ${upvoted[p.incident_id] ? "#22c55e44" : "#6366f144"}`,
@@ -193,8 +197,21 @@ export default function MapDashboard() {
                       fontSize: "12px", fontWeight: "600"
                     }}
                   >
-                    {upvoted[p.incident_id] ? "✅ Upvoted!" : `👍 Upvote (${upvotes[p.incident_id] || 0})`}
+                    {upvoted[p.incident_id] ? "✅ Upvoted!" : `👍 ${upvotes[p.incident_id] || 0}`}
                   </button>
+
+                  {/* Status update */}
+                  <div style={{ fontSize: "10px", color: "#475569", marginBottom: "4px" }}>Update Status:</div>
+                  <select
+                    value={statuses[p.incident_id] || p.status}
+                    onChange={(e) => handleStatusUpdate(p.incident_id, e.target.value)}
+                    style={popupSelect}
+                  >
+                    <option value="reported">📌 Reported</option>
+                    <option value="under_review">🔍 Under Review</option>
+                    <option value="in_progress">🔧 In Progress</option>
+                    <option value="fixed">✅ Fixed</option>
+                  </select>
                 </div>
               </Popup>
             </CircleMarker>

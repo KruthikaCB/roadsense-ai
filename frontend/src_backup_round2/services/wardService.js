@@ -33,18 +33,3 @@ export function getWard(lat, lng) {
   }
   return closest;
 }
-
-/**
- * Compute a 0–100 Road Health Score for a ward given its incident counts.
- * Formula: max(0, 100 - (critical×25 + high×15 + medium×8 + low×3))
- */
-export function getRoadHealthScore({ critical = 0, high = 0, medium = 0, low = 0 } = {}) {
-  return Math.max(0, 100 - (critical * 25 + high * 15 + medium * 8 + low * 3));
-}
-
-/** Returns a colour string for a Road Health Score. */
-export function healthScoreColor(score) {
-  if (score >= 70) return "#22c55e";
-  if (score >= 40) return "#eab308";
-  return "#ef4444";
-}

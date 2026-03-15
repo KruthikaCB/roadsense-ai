@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { getPotholes } from "../services/api";
-import { getWard, getRoadHealthScore, healthScoreColor } from "../services/wardService";
+import { getWard } from "../services/wardService";
 
 const severityScore = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1, critical: 4, high: 3, medium: 2, low: 1 };
 const repairCost = { CRITICAL: 50000, HIGH: 25000, MEDIUM: 10000, LOW: 5000, critical: 50000, high: 25000, medium: 10000, low: 5000 };
@@ -15,31 +15,16 @@ export default function PriorityList() {
     getPotholes().then((res) => {
       const data = res.status === "success" ? res.data : [];
 
-      // Build per-ward severity counts for health score
-      const wardCounts = {};
-      data.forEach((p) => {
-        const ward = getWard(parseFloat(p.latitude), parseFloat(p.longitude));
-        const key = ward.wardNo;
-        if (!wardCounts[key]) wardCounts[key] = { critical: 0, high: 0, medium: 0, low: 0 };
-        const sev = (p.severity || "").toUpperCase();
-        if (sev === "CRITICAL") wardCounts[key].critical++;
-        else if (sev === "HIGH") wardCounts[key].high++;
-        else if (sev === "MEDIUM") wardCounts[key].medium++;
-        else wardCounts[key].low++;
-      });
-
       const all = data.map((p) => {
         const sev = severityScore[p.severity] || 1;
         const count = parseInt(p.report_count) || 1;
         const traffic = trafficDensity[p.severity] || 1;
         const cost = repairCost[p.severity] || 10000;
-        const upvoteBonus = parseInt(p.upvotes) || 0;
-        const priority = Math.round((sev * count * traffic * 100000) / cost) + upvoteBonus;
+        const priority = Math.round((sev * count * traffic * 100000) / cost);
         const ward = getWard(parseFloat(p.latitude), parseFloat(p.longitude));
-        const healthScore = getRoadHealthScore(wardCounts[ward.wardNo] || {});
-        return { ...p, priority, ward: ward.ward, wardNo: ward.wardNo, healthScore };
+        return { ...p, priority, ward: ward.ward, wardNo: ward.wardNo };
       });
-      setIncidents(all.sort((a, b) => b.priority - a.priority || (parseInt(b.upvotes) || 0) - (parseInt(a.upvotes) || 0)));
+      setIncidents(all.sort((a, b) => b.priority - a.priority));
     });
   }, []);
 
@@ -65,7 +50,6 @@ export default function PriorityList() {
               <th>Ward</th>
               <th>Severity</th>
               <th>Score</th>
-              <th>Health</th>
               <th>Action</th>
             </tr>
           </thead>
@@ -85,11 +69,6 @@ export default function PriorityList() {
                 <td>
                   <span style={{ fontWeight: "700", fontSize: "14px", color: p.priority > 20 ? "#f87171" : "#fb923c" }}>
                     {p.priority}
-                  </span>
-                </td>
-                <td>
-                  <span style={{ fontWeight: "700", fontSize: "13px", color: healthScoreColor(p.healthScore) }}>
-                    {p.healthScore}
                   </span>
                 </td>
                 <td style={{ fontSize: "11px", fontWeight: "600" }}>

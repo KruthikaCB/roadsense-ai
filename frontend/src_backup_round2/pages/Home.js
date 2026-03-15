@@ -7,7 +7,6 @@ import PriorityList from "../components/PriorityList";
 import ROICalculator from "../components/ROICalculator";
 import DemoMode from "../components/DemoMode";
 import RiskPredictionPanel from "../components/RiskPredictionPanel";
-import EconomicLossCounter from "../components/EconomicLossCounter";
 
 const tabs = [
   { id: "dashboard", label: "Dashboard", icon: "⬡" },
@@ -102,11 +101,13 @@ export default function Home() {
             <div style={{ marginBottom: "28px" }}>
               <StatsPanel key={refresh} />
             </div>
-            <div className="glass-card" style={{ padding: "24px", marginBottom: "20px" }}>
-              <EconomicLossCounter key={refresh} />
-            </div>
-            <div className="glass-card" style={{ padding: "24px" }}>
-              <RiskPredictionPanel />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
+              <div className="glass-card" style={{ padding: "24px" }}>
+                <Leaderboard />
+              </div>
+              <div className="glass-card" style={{ padding: "24px" }}>
+                <PriorityList />
+              </div>
             </div>
           </div>
         )}
@@ -152,8 +153,11 @@ export default function Home() {
                 <PriorityList />
               </div>
             </div>
-            <div className="glass-card" style={{ padding: "24px", marginBottom: "20px" }}>
+            <div className="glass-card" style={{ padding: "24px" }}>
               <ROICalculator />
+            </div>
+            <div className="glass-card" style={{ padding: "24px" }}>
+              <RiskPredictionPanel />
             </div>
           </div>
         )}

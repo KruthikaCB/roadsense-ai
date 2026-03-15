@@ -42,8 +42,3 @@ export const upvotePothole = async (incidentId) => {
   });
   return res.json();
 };
-
-export const sendBatchComplaints = async () => {
-  const res = await fetch(`${BASE_URL}/complaints/send-batch`, { method: "POST" });
-  return res.json();
-};

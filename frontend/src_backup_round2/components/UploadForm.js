@@ -1,17 +1,6 @@
 import React, { useState } from "react";
-import { uploadIncident, getPotholes, upvotePothole } from "../services/api";
+import { uploadIncident, getComplaint } from "../services/api";
 import StatusTracker from "./StatusTracker";
-
-function haversineDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371000; // meters
-  const toRad = (d) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
 
 const sev2color = { CRITICAL: "#ef4444", HIGH: "#f97316", MEDIUM: "#eab308", LOW: "#22c55e" };
 
@@ -26,10 +15,9 @@ export default function UploadForm({ onUploadSuccess }) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
+  const [complaint, setComplaint] = useState(null);
+  const [complaintLoading, setComplaintLoading] = useState(false);
   const [showTracker, setShowTracker] = useState(false);
-  const [duplicate, setDuplicate] = useState(null);
-  const [upvoted, setUpvoted] = useState(false);
-  const [showReport, setShowReport] = useState(false);
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -49,40 +37,12 @@ export default function UploadForm({ onUploadSuccess }) {
     } catch { setSuggestions([]); }
   };
 
-  const checkDuplicate = async (lat, lon) => {
-    try {
-      const res = await getPotholes();
-      if (res.status !== "success") return;
-      const incidents = res.data || [];
-      const nearby = incidents.find((inc) => {
-        const iLat = parseFloat(inc.latitude);
-        const iLon = parseFloat(inc.longitude);
-        if (isNaN(iLat) || isNaN(iLon)) return false;
-        return haversineDistance(parseFloat(lat), parseFloat(lon), iLat, iLon) <= 50;
-      });
-      if (nearby) {
-        const reported = nearby.reported_at || nearby.created_at || nearby.timestamp;
-        const daysAgo = reported
-          ? Math.floor((Date.now() - new Date(reported).getTime()) / 86400000)
-          : null;
-        setDuplicate({ ...nearby, daysAgo });
-      } else {
-        setDuplicate(null);
-      }
-    } catch {
-      setDuplicate(null);
-    }
-  };
-
   const handleSelectSuggestion = (place) => {
     setLatitude(place.lat);
     setLongitude(place.lon);
     setLocationName(place.display_name.split(",").slice(0, 3).join(","));
     setLocationSearch(place.display_name.split(",").slice(0, 2).join(","));
     setSuggestions([]);
-    setDuplicate(null);
-    setUpvoted(false);
-    checkDuplicate(place.lat, place.lon);
   };
 
   const handleAutoDetect = () => {
@@ -105,9 +65,6 @@ export default function UploadForm({ onUploadSuccess }) {
           setLatitude(lat);
           setLongitude(lng);
           setLocationSearch("📍 Detected location");
-          setDuplicate(null);
-          setUpvoted(false);
-          checkDuplicate(lat, lng);
           try {
             const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
             const data = await res.json();
@@ -147,13 +104,24 @@ export default function UploadForm({ onUploadSuccess }) {
       setError("Please select an image and set a location.");
       return;
     }
-    setLoading(true); setError(""); setResult(null);
+    setLoading(true); setError(""); setResult(null); setComplaint(null);
     try {
       const res = await uploadIncident(image, latitude, longitude);
       if (res.status === "error") { setError(res.message || "Could not analyze image."); setLoading(false); return; }
       if (res.status === "success") { setResult(res.data); if (onUploadSuccess) onUploadSuccess(); }
     } catch { setError("Upload failed. Please check your connection and try again."); }
     setLoading(false);
+  };
+
+  const handleGenerateComplaint = async () => {
+    if (!result?.incident_id) return;
+    setComplaintLoading(true);
+    try {
+      const res = await getComplaint(result.incident_id);
+      if (res.status === "success") setComplaint(res.data.complaint);
+      else setComplaint("Failed to generate complaint. Please try again.");
+    } catch { setComplaint("Error generating complaint."); }
+    setComplaintLoading(false);
   };
 
   return (
@@ -249,63 +217,6 @@ export default function UploadForm({ onUploadSuccess }) {
           )}
         </div>
 
-        {/* Duplicate warning */}
-        {duplicate && !upvoted && (
-          <div style={{
-            marginBottom: "16px", padding: "16px",
-            background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.35)",
-            borderRadius: "12px"
-          }}>
-            <p style={{ fontWeight: "700", color: "#fbbf24", fontSize: "13px", marginBottom: "6px" }}>
-              ⚠️ {parseInt(duplicate.report_count) > 1 ? `${duplicate.report_count} others already reported this pothole.` : `A pothole was already reported here${duplicate.daysAgo != null ? ` ${duplicate.daysAgo} day${duplicate.daysAgo !== 1 ? "s" : ""} ago` : ""}.`}
-            </p>
-            <p style={{ fontSize: "12px", color: "var(--text-secondary)", marginBottom: "4px" }}>
-              Severity: <strong style={{ color: sev2color[duplicate.severity] || "#eab308" }}>{duplicate.severity}</strong>
-              &nbsp;·&nbsp;{duplicate.upvotes || 0} upvote{(duplicate.upvotes || 0) !== 1 ? "s" : ""}
-            </p>
-            <p style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "12px" }}>
-              Your report will be added and BBMP will receive a batch summary.
-            </p>
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button
-                type="button"
-                onClick={async () => {
-                  await upvotePothole(duplicate.incident_id);
-                  setUpvoted(true);
-                }}
-                style={{
-                  flex: 1, padding: "9px", fontSize: "12px", fontWeight: "600",
-                  background: "rgba(251,191,36,0.15)", color: "#fbbf24",
-                  border: "1px solid rgba(251,191,36,0.4)", borderRadius: "8px", cursor: "pointer"
-                }}
-              >
-                👍 Upvote Existing Report
-              </button>
-              <button
-                type="button"
-                onClick={() => setDuplicate(null)}
-                style={{
-                  flex: 1, padding: "9px", fontSize: "12px", fontWeight: "600",
-                  background: "rgba(99,102,241,0.12)", color: "#818cf8",
-                  border: "1px solid rgba(99,102,241,0.3)", borderRadius: "8px", cursor: "pointer"
-                }}
-              >
-                ➕ Submit Anyway as New
-              </button>
-            </div>
-          </div>
-        )}
-
-        {upvoted && (
-          <div style={{
-            marginBottom: "16px", padding: "12px",
-            background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.3)",
-            borderRadius: "10px", fontSize: "13px", color: "#34d399", fontWeight: "600"
-          }}>
-            ✅ Upvoted! This pothole's priority has been increased.
-          </div>
-        )}
-
         {/* Submit button */}
         <button type="submit" disabled={loading} className="btn-danger" style={{ width: "100%", padding: "12px", fontSize: "14px" }}>
           {loading ? "⏳ Analyzing with AI..." : "🚨 Submit Report"}
@@ -322,105 +233,6 @@ export default function UploadForm({ onUploadSuccess }) {
           ⚠️ {error}
         </div>
       )}
-
-      {/* BBMP Report Modal */}
-      {showReport && result && (() => {
-        const sev = (result.severity || "UNKNOWN").toUpperCase();
-        const loc = locationName || `${parseFloat(latitude || 0).toFixed(4)}, ${parseFloat(longitude || 0).toFixed(4)}`;
-        const ward = locationName ? locationName.split(",")[0].trim() : "Bengaluru";
-        const lat = parseFloat(latitude || 0).toFixed(4);
-        const lon = parseFloat(longitude || 0).toFixed(4);
-        const reportCount = result.report_count || 1;
-        const dailyLoss = { CRITICAL: 1667, HIGH: 667, MEDIUM: 267, LOW: 67 }[sev] || 267;
-        const thirtyDayLoss = dailyLoss * 30;
-        const today = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
-        return (
-          <div style={{
-            position: "fixed", inset: 0, zIndex: 9999,
-            background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)",
-            display: "flex", alignItems: "center", justifyContent: "center", padding: "20px"
-          }}>
-            <div style={{
-              background: "var(--bg-card)", border: "1px solid var(--border-accent)",
-              borderRadius: "16px", width: "100%", maxWidth: "560px",
-              maxHeight: "90vh", overflowY: "auto",
-              boxShadow: "0 24px 64px rgba(0,0,0,0.6)"
-            }}>
-              {/* Modal header */}
-              <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid var(--border)" }}>
-                <div style={{ fontSize: "16px", fontWeight: "700", color: "var(--text-primary)", marginBottom: "4px" }}>📋 BBMP Complaint Report</div>
-                <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>This report will be sent to BBMP in the next batch</div>
-              </div>
-
-              {/* Email preview */}
-              <div style={{ padding: "20px 24px" }}>
-                {/* Email meta */}
-                <div style={{
-                  background: "var(--bg-surface)", borderRadius: "10px",
-                  padding: "14px 16px", marginBottom: "16px",
-                  fontSize: "12px", lineHeight: "1.8", color: "var(--text-secondary)"
-                }}>
-                  <div><span style={{ color: "var(--text-muted)", minWidth: "60px", display: "inline-block" }}>To:</span> <span style={{ color: "#818cf8" }}>complaints@bbmp.gov.in</span></div>
-                  <div><span style={{ color: "var(--text-muted)", minWidth: "60px", display: "inline-block" }}>Subject:</span> <span style={{ color: "var(--text-primary)", fontWeight: "600" }}>RoadSense AI - Pothole Report | {ward} | Severity: {sev}</span></div>
-                </div>
-
-                {/* Email body */}
-                <div style={{
-                  background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)",
-                  borderRadius: "10px", padding: "18px 20px",
-                  fontSize: "13px", color: "var(--text-secondary)", lineHeight: "2"
-                }}>
-                  <p style={{ color: "var(--text-primary)", fontWeight: "600", marginBottom: "12px" }}>Dear BBMP Ward Officer,</p>
-                  <p style={{ marginBottom: "16px" }}>
-                    A pothole has been reported at <strong style={{ color: "var(--text-primary)" }}>{loc}</strong> in <strong style={{ color: "var(--text-primary)" }}>{ward}</strong>.
-                  </p>
-
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "16px" }}>
-                    {[
-                      { label: "Severity", value: sev, color: { CRITICAL: "#ef4444", HIGH: "#f97316", MEDIUM: "#eab308", LOW: "#22c55e" }[sev] || "#eab308" },
-                      { label: "Reported by", value: `${reportCount} citizen${reportCount !== 1 ? "s" : ""}`, color: "var(--text-primary)" },
-                      { label: "Coordinates", value: `${lat}, ${lon}`, color: "var(--text-primary)" },
-                      { label: "Date Reported", value: today, color: "var(--text-primary)" },
-                      { label: "Days Unresolved", value: "0", color: "#22c55e" },
-                      { label: "Daily Loss", value: `₹${dailyLoss.toLocaleString()}/day`, color: "#ef4444" },
-                    ].map(({ label, value, color }) => (
-                      <div key={label} style={{ background: "var(--bg-surface)", padding: "10px 12px", borderRadius: "8px" }}>
-                        <div style={{ fontSize: "10px", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "2px" }}>{label}</div>
-                        <div style={{ fontWeight: "700", color, fontSize: "12px" }}>{value}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div style={{
-                    background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)",
-                    borderRadius: "8px", padding: "10px 14px", marginBottom: "16px", fontSize: "12px"
-                  }}>
-                    ⚠️ If unresolved for 30 days: <strong style={{ color: "#ef4444" }}>₹{thirtyDayLoss.toLocaleString()} total loss</strong>
-                  </div>
-
-                  <p style={{ marginBottom: "8px" }}>Please prioritize this repair.</p>
-                  <p style={{ color: "var(--text-muted)", fontSize: "12px" }}>— RoadSense AI Civic Platform</p>
-                </div>
-              </div>
-
-              {/* Footer */}
-              <div style={{ padding: "16px 24px", borderTop: "1px solid var(--border)" }}>
-                <button
-                  onClick={() => setShowReport(false)}
-                  style={{
-                    width: "100%", padding: "11px",
-                    background: "var(--bg-surface)", color: "var(--text-secondary)",
-                    border: "1px solid var(--border)", borderRadius: "10px",
-                    cursor: "pointer", fontSize: "13px", fontWeight: "600"
-                  }}
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
 
       {/* Success Result */}
       {result && (
@@ -471,27 +283,76 @@ export default function UploadForm({ onUploadSuccess }) {
             📍 Track Repair Status
           </button>
 
-          {/* Show Report Button */}
-          <button
-            onClick={() => setShowReport(true)}
-            style={{
-              width: "100%", padding: "12px", marginBottom: "10px",
-              background: "rgba(99,102,241,0.12)", color: "#818cf8",
-              border: "1px solid rgba(99,102,241,0.35)", borderRadius: "10px",
-              cursor: "pointer", fontSize: "13px", fontWeight: "600"
-            }}
-          >
-            📋 Show Report
-          </button>
-
-          {/* Batch notification notice */}
-          <div style={{
-            padding: "12px 14px",
-            background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.25)",
-            borderRadius: "10px", fontSize: "12px", color: "#a5b4fc", lineHeight: "1.6"
-          }}>
-            📬 BBMP will be notified in the next batch report. Ward officers receive a consolidated summary — not individual emails — to reduce noise and increase action.
-          </div>
+          {/* COMPLAINT SECTION */}
+          {!complaint ? (
+            <button
+              onClick={handleGenerateComplaint}
+              disabled={complaintLoading}
+              style={{
+                width: "100%", padding: "12px",
+                background: complaintLoading ? "#374151" : "linear-gradient(135deg, #7c3aed, #6366f1)",
+                color: "white", border: "none", borderRadius: "10px",
+                cursor: complaintLoading ? "not-allowed" : "pointer",
+                fontSize: "13px", fontWeight: "600", fontFamily: "Inter, sans-serif"
+              }}
+            >
+              {complaintLoading ? "⏳ Generating BBMP Complaint..." : "📋 Generate BBMP RTI Complaint"}
+            </button>
+          ) : (
+            <div style={{
+              background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.25)",
+              borderRadius: "10px", padding: "16px"
+            }}>
+              <div style={{ fontSize: "12px", fontWeight: "600", color: "#818cf8", marginBottom: "10px" }}>
+                📋 BBMP RTI Complaint Generated
+              </div>
+              <div style={{
+                fontSize: "12px", color: "var(--text-secondary)", lineHeight: "1.8",
+                maxHeight: "200px", overflowY: "auto", whiteSpace: "pre-wrap"
+              }}>
+                {complaint}
+              </div>
+              <div style={{ marginTop: "10px", display: "flex", gap: "8px" }}>
+                <button
+                  onClick={() => navigator.clipboard.writeText(complaint)}
+                  style={{
+                    flex: 1, padding: "8px", background: "rgba(99,102,241,0.15)",
+                    color: "#818cf8", border: "1px solid rgba(99,102,241,0.3)",
+                    borderRadius: "8px", cursor: "pointer", fontSize: "12px", fontWeight: "600"
+                  }}
+                >
+                  📋 Copy
+                </button>
+                <button
+                  onClick={() => window.open(`mailto:complaints@bbmp.gov.in?subject=Urgent Pothole Repair Request - ${result.incident_id}&body=${encodeURIComponent(complaint)}`)}
+                  style={{
+                    flex: 1, padding: "8px", background: "rgba(34,197,94,0.15)",
+                    color: "#34d399", border: "1px solid rgba(34,197,94,0.3)",
+                    borderRadius: "8px", cursor: "pointer", fontSize: "12px", fontWeight: "600"
+                  }}
+                >
+                  📧 Email BBMP
+                </button>
+                <button
+                  onClick={() => {
+                    const blob = new Blob([complaint], { type: "text/plain" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url; a.download = `bbmp_complaint_${result.incident_id}.txt`;
+                    a.click();
+                  }}
+                  style={{
+                    flex: 1, padding: "8px", background: "rgba(16,185,129,0.15)",
+                    color: "#34d399", border: "1px solid rgba(16,185,129,0.3)",
+                    borderRadius: "8px", cursor: "pointer", fontSize: "12px", fontWeight: "600"
+                  }}
+                >
+                  ⬇️ Download
+                </button>
+              </div>
+              <p style={{ fontSize: "11px", color: "#34d399", marginTop: "8px" }}>✅ Complaint ready to submit to BBMP</p>
+            </div>
+          )}
 
           <p style={{ fontSize: "10px", color: "var(--text-muted)", marginTop: "10px" }}>ID: {result.incident_id}</p>
         </div>

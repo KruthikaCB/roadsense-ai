@@ -10,6 +10,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from config import settings
 
 from routes import upload, potholes, stats, complaints, prediction
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ---------------------------------------------------------------------------
 # Logging

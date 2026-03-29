@@ -17,7 +17,7 @@ export default function StatusTracker({ incidentId, severity, onClose }) {
 
   useEffect(() => {
     if (!incidentId) return;
-    fetch(`http://127.0.0.1:8000/api/potholes/${incidentId}`)
+    fetch(`https://roadsense-ai.onrender.com/api/potholes/${incidentId}`)
       .then(r => r.json())
       .then(res => {
         if (res.status === "success") {
@@ -32,7 +32,7 @@ export default function StatusTracker({ incidentId, severity, onClose }) {
   const handleUpvote = async () => {
     if (upvoted) return;
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/potholes/${incidentId}/upvote`, {
+      const res = await fetch(`https://roadsense-ai.onrender.com/api/potholes/${incidentId}/upvote`, {
         method: "POST"
       });
       const data = await res.json();

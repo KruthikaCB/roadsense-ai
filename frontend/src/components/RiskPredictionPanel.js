@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 
 const API_URL = process.env.REACT_APP_API_URL 
   ? `${process.env.REACT_APP_API_URL}/predict/risk-zones` 
-  : "http://localhost:8000/predict/risk-zones";
+  : "https://roadsense-ai.onrender.com/predict/risk-zones";
 
 function riskColor(score) {
   if (score > 70) return "#ef4444";

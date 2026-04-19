@@ -1,25 +1,32 @@
-# RoadSense AI
+# 🚦 RoadSense AI
 
-AI powered pothole detection and traffic impact system.
+> **⚠️ Hackathon Project** — Built for the **NIMBUS1000 Hackathon**. The live demo is currently unavailable as the AWS backend hosting has expired. The frontend is still live at [roadsense-ai-chi.vercel.app](https://roadsense-ai-chi.vercel.app).
 
-## Project Structure
+An AI-powered road safety dashboard that detects potholes, analyzes road damage, and provides real-time insights for authorities.
 
-frontend → React dashboard  
-backend → FastAPI APIs  
-docs → architecture and setup  
-.kiro → spec documents  
+---
 
-## How to run backend
+## 🛠️ Tech Stack
 
+- **Frontend** — React, deployed on Vercel
+- **Backend** — FastAPI (Python), deployed on Render
+- **AI/ML** — Pothole detection & prediction models
+- **Database** — AWS (trial expired)
+
+---
+
+## 🚀 Run Locally
+
+### Backend
+```bash
 cd backend
-
 pip install -r requirements.txt
-
 uvicorn app:app --reload
+```
 
-## Team Modules
-
-Backend → APIs and database
-Frontend → Dashboard UI
-AWS → S3 + DynamoDB
-AI → Severity detection
+### Frontend
+```bash
+cd frontend
+npm install
+npm start
+```

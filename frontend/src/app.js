@@ -2,7 +2,6 @@ import React from "react";
 import Home from "./pages/Home";
 import AdminPortal from "./pages/AdminPortal";
 
-// Hackathon banner component
 function HackathonBanner() {
   return (
     <div style={{
@@ -15,12 +14,8 @@ function HackathonBanner() {
       fontFamily: "Inter, sans-serif"
     }}>
       🏆 <strong style={{color: "#a5b4fc"}}>NIMBUS1000 Hackathon Project</strong> — Live AI features are currently unavailable (AWS backend expired).{" "}
-      
-        href="https://github.com/akashsgowda/roadsense"
-        target="_blank"
-        rel="noreferrer"
-        style={{ color: "#818cf8", textDecoration: "underline" }}
-      >
+      <a href="https://github.com/akashsgowda/roadsense" target="_blank" rel="noreferrer"
+        style={{ color: "#818cf8", textDecoration: "underline" }}>
         View source on GitHub
       </a>
     </div>
@@ -29,6 +24,10 @@ function HackathonBanner() {
 
 export default function App() {
   const path = window.location.pathname;
-  if (path === "/admin") return <><HackathonBanner /><AdminPortal /></>;
-  return <><HackathonBanner /><Home /></>;
+  return (
+    <div>
+      <HackathonBanner />
+      {path === "/admin" ? <AdminPortal /> : <Home />}
+    </div>
+  );
 }
